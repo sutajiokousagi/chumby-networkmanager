@@ -138,22 +138,25 @@ glib_main (gpointer data)
 
 	connections = nm_client_get_active_connections (client);
 
-	for (i=0; connections && !printed && i<connections->len; i++)
+	if (connections)
 	{
-		int j;
-		NMActiveConnection *con;
-		const GPtrArray *devices;
-
-		con = g_ptr_array_index(connections, i);
-		devices = nm_active_connection_get_devices (con);
-
-		for (j=0; !printed && j<devices->len; j++)
+		for (i=0; connections && !printed && i<connections->len; i++)
 		{
-			NMDevice *dev;
-			dev = g_ptr_array_index(devices, j);
+			int j;
+			NMActiveConnection *con;
+			const GPtrArray *devices;
 
-			print_device (client, con, dev);
-			printed = 1;
+			con = g_ptr_array_index(connections, i);
+			devices = nm_active_connection_get_devices (con);
+
+			for (j=0; !printed && j<devices->len; j++)
+			{
+				NMDevice *dev;
+				dev = g_ptr_array_index(devices, j);
+
+				print_device (client, con, dev);
+				printed = 1;
+			}
 		}
 	}
 
