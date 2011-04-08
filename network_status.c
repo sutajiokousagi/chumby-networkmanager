@@ -138,7 +138,7 @@ glib_main (gpointer data)
 
 	connections = nm_client_get_active_connections (client);
 
-	for (i=0; !printed && i<connections->len; i++)
+	for (i=0; connections && !printed && i<connections->len; i++)
 	{
 		int j;
 		NMActiveConnection *con;

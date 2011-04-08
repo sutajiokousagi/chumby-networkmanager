@@ -66,7 +66,7 @@ glib_main (gpointer data)
 
 	devices = nm_client_get_devices(client);
 
-	for (i=0; i<devices->len; i++)
+	for (i=0; devices && i<devices->len; i++)
 	{
 		NMDevice *dev;
 		NMDeviceWifi *wifi;
@@ -82,7 +82,7 @@ glib_main (gpointer data)
 		wifi = (NMDeviceWifi *)dev;
 		aps = nm_device_wifi_get_access_points(wifi);
 
-		for (ap_i=0; ap_i<aps->len; ap_i++)
+		for (ap_i=0; aps && ap_i<aps->len; ap_i++)
 		{
 			NMAccessPoint *ap;
 			const char *macaddr;
