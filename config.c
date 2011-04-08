@@ -189,6 +189,8 @@ read_connection(struct connection *conn, xmlNode * a_node)
             strtoip(value, &conn->nameserver1);
         else if(!strcmp(name, "nameserver2"))
             strtoip(value, &conn->nameserver2);
+        else if(!strcmp(name, "username"))
+            ; // Ignore
         else {
             fprintf(stderr, "Unrecognized field: %s\n", name);
             return;
