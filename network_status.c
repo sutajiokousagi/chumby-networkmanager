@@ -118,8 +118,8 @@ print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev)
 		
 
 
-static gboolean
-glib_main (gpointer data)
+gboolean
+network_status (gpointer data)
 {
 	NMClient *client;
 	const GPtrArray *connections;
@@ -127,11 +127,15 @@ glib_main (gpointer data)
 	int printed = 0;
 
 
-	if (!(client = nm_client_new()))
+	client = (NMClient *)data;
+	if (!client)
 	{
-		g_print ("<network>\n\t<interface>\n\t\t<error>Unable to connect to NetworkManager</error>\n\t</interface>\n</network>\n");
-		g_main_loop_quit (loop);
-		return FALSE;
+		if (!(client = nm_client_new()))
+		{
+			g_print ("<network>\n\t<interface>\n\t\t<error>Unable to connect to NetworkManager</error>\n\t</interface>\n</network>\n");
+			g_main_loop_quit (loop);
+			return FALSE;
+		}
 	}
 
 	g_print ("<network>\n");
@@ -171,13 +175,15 @@ glib_main (gpointer data)
 	return FALSE;
 }
 
+#ifdef STANDALONE
 int
 main (int argc, char **argv)
 {
 	/* glib overhead */
 	g_type_init();
-	g_idle_add (glib_main, NULL);
+	g_idle_add (network_status, NULL);
 	loop = g_main_loop_new (NULL, FALSE);  /* create main loop */
 	g_main_loop_run (loop);                /* run main loop */
 	return 0;
 }
+#endif

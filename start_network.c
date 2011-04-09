@@ -24,6 +24,7 @@ struct start_network_data {
 	char uuid[64];
 };
 
+gboolean network_status (gpointer data);
 
 
 static NMConnection *
@@ -307,7 +308,6 @@ get_device_for_connection (NMClient *client, NMConnection *connection)
 static void
 active_connection_state_cb (NMActiveConnection *active, GParamSpec *pspec, gpointer user_data)
 {
-	struct start_network_data *data = (struct start_network_data *)user_data;
         NMActiveConnectionState state;
 
         state = nm_active_connection_get_state (active);
@@ -449,24 +449,30 @@ glib_main (gpointer data)
 
     if (!(start_network_data.client = nm_client_new()))
     {
-        g_error("Unable to connect to NetworkManager");
+        network_status (NULL);
+        return FALSE;
     }
 
 
     /*parse the file and get the DOM */
     if( NULL == (doc = xmlReadFile(NETWORK_CONFIG, NULL, 0))) {
-        printf("error: Could not parse " NETWORK_CONFIG "\n");
-        return 1;
+        fprintf(stderr, "error: Could not parse " NETWORK_CONFIG "\n");
+        network_status (start_network_data.client);
+        return FALSE;
     }
 
     /*Get the root element node */
     root_element = xmlDocGetRootElement(doc);
     if (root_element->type == XML_ELEMENT_NODE && !strcmp((char *)root_element->name, "configuration")) {
-        read_connection(&conn, root_element);
+        if (!read_connection(&conn, root_element)) {
+            network_status (start_network_data.client);
+            return FALSE;
+        }
     }
     else {
         fprintf(stderr, "error: Invalid " NETWORK_CONFIG " file: No <configuration/> root node\n");
-        return 1;
+        network_status (start_network_data.client);
+        return FALSE;
     }
 
     xmlFreeDoc(doc);
@@ -477,6 +483,10 @@ glib_main (gpointer data)
 
 
     do_connection(&start_network_data);
+
+    /* Print out network status and quit */
+    network_status (start_network_data.client);
+
 
     return FALSE;
 }

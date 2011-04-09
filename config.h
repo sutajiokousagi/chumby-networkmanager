@@ -66,7 +66,7 @@ struct connection {
 };
 
 
-void
+gboolean
 read_connection(struct connection *conn, xmlNode * a_node);
 
 int

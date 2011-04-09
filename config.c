@@ -96,7 +96,7 @@ print_ssid(FILE *output, struct connection *conn)
  * Prints the names of the all the xml elements
  * that are siblings or children of a given xml node.
  */
-void
+gboolean
 read_connection(struct connection *conn, xmlNode * a_node)
 {
     bzero(conn, sizeof(*conn));
@@ -112,7 +112,7 @@ read_connection(struct connection *conn, xmlNode * a_node)
                 conn->connection_type = CONNECTION_TYPE_LAN;
             else {
                 fprintf(stderr, "Unrecognized connection type: %s\n", value);
-                return;
+                return FALSE;
             }
         }
 
@@ -135,7 +135,7 @@ read_connection(struct connection *conn, xmlNode * a_node)
                 conn->phy.wlan.auth_type = AUTH_TYPE_WPA2PSK;
             else {
                 fprintf(stderr, "Unrecognized auth: %s\n", value);
-                return;
+                return FALSE;
             }
         }
 
@@ -150,7 +150,7 @@ read_connection(struct connection *conn, xmlNode * a_node)
                 conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_AES;
             else {
                 fprintf(stderr, "Unrecognized encryption: %s\n", value);
-                return;
+                return FALSE;
             }
         }
 
@@ -161,7 +161,7 @@ read_connection(struct connection *conn, xmlNode * a_node)
                 conn->phy.wlan.key_type = KEY_TYPE_HEX;
             else {
                 fprintf(stderr, "Unrecognized encoding type: %s\n", value);
-                return;
+                return FALSE;
             }
         }
 
@@ -175,7 +175,7 @@ read_connection(struct connection *conn, xmlNode * a_node)
                 conn->allocation_type = ALLOCATION_TYPE_DHCP;
             else {
                 fprintf(stderr, "Unrecognized allocation: %s\n", value);
-                return;
+                return FALSE;
             }
         }
 
@@ -193,9 +193,10 @@ read_connection(struct connection *conn, xmlNode * a_node)
             ; // Ignore
         else {
             fprintf(stderr, "Unrecognized field: %s\n", name);
-            return;
         }
     }
+
+    return TRUE;
 }
 
 #if 0

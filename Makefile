@@ -5,16 +5,19 @@ MYCFLAGS+=`pkg-config libxml-2.0 --cflags` `pkg-config glib-2.0 --cflags --libs`
 MYLDFLAGS+=`pkg-config libxml-2.0 --libs` `pkg-config glib-2.0 --libs` `pkg-config libnm-glib --libs` `pkg-config NetworkManager --libs` `pkg-config dbus-1 --libs`
 
 start_network_clean:
-	rm -f config.o start_network.o start_network
+	rm -f config.o start_network.o network_status.o start_network
 
-start_network: config.o start_network.o
-	$(CC) config.o start_network.o -o start_network $(MYLDFLAGS) $(LDFLAGS)
+start_network: config.o start_network.o network_status.o
+	$(CC) config.o start_network.o network_status.o -o start_network $(MYLDFLAGS) $(LDFLAGS)
 
 config.o: config.c config.h
 	$(CC) config.c -c -o config.o $(MYCFLAGS) $(CFLAGS)
 
 start_network.o: start_network.c config.h
 	$(CC) start_network.c -c -o start_network.o $(MYCFLAGS) $(CFLAGS)
+
+network_status.o: network_status.c
+	$(CC)  -c network_status.c -o network_status.o $(MYCFLAGS) $(MYLDFLAGS) $(CFLAGS) $(LDFLAGS)
 
 
 ap_scan_clean:
@@ -44,5 +47,5 @@ network_status_clean:
 	rm -f network_status.sh
 
 network_status: network_status.c
-	$(CC)  network_status.c -o network_status.sh $(MYCFLAGS) $(MYLDFLAGS) $(CFLAGS) $(LDFLAGS)
+	$(CC)  network_status.c -o network_status.sh $(MYCFLAGS) $(MYLDFLAGS) $(CFLAGS) $(LDFLAGS) -DSTANDALONE
 
