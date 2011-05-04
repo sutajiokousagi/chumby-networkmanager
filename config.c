@@ -96,107 +96,121 @@ print_ssid(FILE *output, struct connection *conn)
  * Prints the names of the all the xml elements
  * that are siblings or children of a given xml node.
  */
-gboolean
+gchar *
 read_connection(struct connection *conn, xmlNode * a_node)
 {
-    bzero(conn, sizeof(*conn));
-    xmlAttr *properties = a_node->properties;
-    for(properties = a_node->properties; properties; properties = properties->next) {
-        char *name = (char *)properties->name;
-        char *value = (char *)properties->children->content;
+	static gchar err[512];
+	bzero(conn, sizeof(*conn));
+	xmlAttr *properties = a_node->properties;
 
-        if(!strcmp(name, "type")) {
-            if(!strcmp(value, "wlan"))
-                conn->connection_type = CONNECTION_TYPE_WLAN;
-            else if(!strcmp(value, "lan"))
-                conn->connection_type = CONNECTION_TYPE_LAN;
-            else {
-                fprintf(stderr, "Unrecognized connection type: %s\n", value);
-                return FALSE;
-            }
-        }
+	/* Set some defaults */
+	conn->allocation_type = ALLOCATION_TYPE_DHCP;
+	conn->connection_type = CONNECTION_TYPE_WLAN;
+	conn->phy.wlan.auth_type = AUTH_TYPE_OPEN;
+	conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_NONE;
+	conn->phy.wlan.key_type = KEY_TYPE_ASCII;
 
-        else if(!strcmp(name, "hwaddr"))
-            strncpy(conn->phy.wlan.hwaddr, value, sizeof(conn->phy.wlan.hwaddr)-1);
+	for(properties = a_node->properties; properties; properties = properties->next) {
+		char *name = (char *)properties->name;
+		char *value = (char *)properties->children->content;
 
-        else if(!strcmp(name, "ssid")) {
-            strncpy(conn->phy.wlan.ssid, value, sizeof(conn->phy.wlan.ssid)-1);
-            conn->phy.wlan.ssid_len = xmlUTF8Size(properties->name);
-        }
+		if(!strcmp(name, "type")) {
+			if(!strcmp(value, "wlan"))
+				conn->connection_type = CONNECTION_TYPE_WLAN;
+			else if(!strcmp(value, "lan"))
+				conn->connection_type = CONNECTION_TYPE_LAN;
+			else {
+				conn->connection_type = CONNECTION_TYPE_UNKNOWN;
+				g_snprintf(err, sizeof(err), "Unrecognized connection type: %s\n", value);
+				return err;
+			}
+		}
 
-        else if(!strcmp(name, "auth")) {
-            if(!strcmp(value, "OPEN"))
-                conn->phy.wlan.auth_type = AUTH_TYPE_OPEN;
-            else if(!strcmp(value, "WEPAUTO"))
-                conn->phy.wlan.auth_type = AUTH_TYPE_WEPAUTO;
-            else if(!strcmp(value, "WPAPSK"))
-                conn->phy.wlan.auth_type = AUTH_TYPE_WPAPSK;
-            else if(!strcmp(value, "WPA2PSK"))
-                conn->phy.wlan.auth_type = AUTH_TYPE_WPA2PSK;
-            else {
-                fprintf(stderr, "Unrecognized auth: %s\n", value);
-                return FALSE;
-            }
-        }
+		else if(!strcmp(name, "hwaddr"))
+			strncpy(conn->phy.wlan.hwaddr, value, sizeof(conn->phy.wlan.hwaddr)-1);
 
-        else if(!strcmp(name, "encryption")) {
-            if(!strcmp(value, "NONE"))
-                conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_NONE;
-            else if(!strcmp(value, "WEP"))
-                conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_WEP;
-            else if(!strcmp(value, "TKIP"))
-                conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_TKIP;
-            else if(!strcmp(value, "AES"))
-                conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_AES;
-            else {
-                fprintf(stderr, "Unrecognized encryption: %s\n", value);
-                return FALSE;
-            }
-        }
+		else if(!strcmp(name, "ssid")) {
+			strncpy(conn->phy.wlan.ssid, value, sizeof(conn->phy.wlan.ssid)-1);
+			conn->phy.wlan.ssid_len = xmlUTF8Size(properties->name);
+		}
 
-        else if(!strcmp(name, "encoding")) {
-            if(!strcmp(value, "ascii"))
-                conn->phy.wlan.key_type = KEY_TYPE_ASCII;
-            else if(!strcmp(value, "hex"))
-                conn->phy.wlan.key_type = KEY_TYPE_HEX;
-            else {
-                fprintf(stderr, "Unrecognized encoding type: %s\n", value);
-                return FALSE;
-            }
-        }
+		else if(!strcmp(name, "auth")) {
+			if(!strcmp(value, "OPEN"))
+				conn->phy.wlan.auth_type = AUTH_TYPE_OPEN;
+			else if(!strcmp(value, "WEPAUTO"))
+				conn->phy.wlan.auth_type = AUTH_TYPE_WEPAUTO;
+			else if(!strcmp(value, "WPAPSK"))
+				conn->phy.wlan.auth_type = AUTH_TYPE_WPAPSK;
+			else if(!strcmp(value, "WPA2PSK"))
+				conn->phy.wlan.auth_type = AUTH_TYPE_WPA2PSK;
+			else {
+				conn->phy.wlan.auth_type = AUTH_TYPE_UNKNOWN;
+				g_snprintf(err, sizeof(err), "Unrecognized auth: %s\n", value);
+				return err;
+			}
+		}
 
-        else if(!strcmp(name, "key"))
-            strncpy(conn->phy.wlan.key, value, sizeof(conn->phy.wlan.key)-1);
+		else if(!strcmp(name, "encryption")) {
+			if(!strcmp(value, "NONE"))
+				conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_NONE;
+			else if(!strcmp(value, "WEP"))
+				conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_WEP;
+			else if(!strcmp(value, "TKIP"))
+				conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_TKIP;
+			else if(!strcmp(value, "AES"))
+				conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_AES;
+			else {
+				conn->phy.wlan.encryption_type = ENCRYPTION_TYPE_UNKNOWN;
+				g_snprintf(err, sizeof(err), "Unrecognized encryption: %s\n", value);
+				return err;
+			}
+		}
 
-        else if(!strcmp(name, "allocation")) {
-            if(!strcmp(value, "static"))
-                conn->allocation_type = ALLOCATION_TYPE_STATIC;
-            else if(!strcmp(value, "dhcp"))
-                conn->allocation_type = ALLOCATION_TYPE_DHCP;
-            else {
-                fprintf(stderr, "Unrecognized allocation: %s\n", value);
-                return FALSE;
-            }
-        }
+		else if(!strcmp(name, "encoding")) {
+			if(!strcmp(value, "ascii"))
+				conn->phy.wlan.key_type = KEY_TYPE_ASCII;
+			else if(!strcmp(value, "hex"))
+				conn->phy.wlan.key_type = KEY_TYPE_HEX;
+			else {
+				conn->phy.wlan.key_type = KEY_TYPE_UNKNOWN;
+				g_snprintf(err, sizeof(err), "Unrecognized encoding type: %s\n", value);
+				return err;
+			}
+		}
 
-        else if(!strcmp(name, "ip"))
-            strtoip(value, &conn->ip);
-        else if(!strcmp(name, "netmask"))
-            strtoip(value, &conn->netmask);
-        else if(!strcmp(name, "gateway"))
-            strtoip(value, &conn->gateway);
-        else if(!strcmp(name, "nameserver1"))
-            strtoip(value, &conn->nameserver1);
-        else if(!strcmp(name, "nameserver2"))
-            strtoip(value, &conn->nameserver2);
-        else if(!strcmp(name, "username"))
-            ; // Ignore
-        else {
-            fprintf(stderr, "Unrecognized field: %s\n", name);
-        }
-    }
+		else if(!strcmp(name, "key"))
+			strncpy(conn->phy.wlan.key, value, sizeof(conn->phy.wlan.key)-1);
 
-    return TRUE;
+		else if(!strcmp(name, "allocation")) {
+			if(!strcmp(value, "static"))
+				conn->allocation_type = ALLOCATION_TYPE_STATIC;
+			else if(!strcmp(value, "dhcp"))
+				conn->allocation_type = ALLOCATION_TYPE_DHCP;
+			else {
+				conn->allocation_type = ALLOCATION_TYPE_UNKNOWN;
+				g_snprintf(err, sizeof(err), "Unrecognized allocation: %s\n", value);
+				return err;
+			}
+		}
+
+		else if(!strcmp(name, "ip"))
+			strtoip(value, &conn->ip);
+		else if(!strcmp(name, "netmask"))
+			strtoip(value, &conn->netmask);
+		else if(!strcmp(name, "gateway"))
+			strtoip(value, &conn->gateway);
+		else if(!strcmp(name, "nameserver1"))
+			strtoip(value, &conn->nameserver1);
+		else if(!strcmp(name, "nameserver2"))
+			strtoip(value, &conn->nameserver2);
+		else if(!strcmp(name, "username"))
+			; // Ignore
+		else {
+			fprintf(stderr, "Unrecognized field: %s\n", name);
+		}
+	}
+
+	return NULL;
 }
 
 #if 0

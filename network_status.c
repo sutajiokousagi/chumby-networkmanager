@@ -33,7 +33,7 @@ nm_ip4_config_get_route (NMIP4Config *config, guint i)
 
 
 static void
-print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev)
+print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev, gchar *errormessage)
 {
 	const char *state;
 	const char *link;
@@ -112,6 +112,11 @@ print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev)
 		g_print ("\t\t<error>Failed to obtain IP address</error>\n");
 		g_print ("\t\t<error>Interface is down</error>\n");
 	}
+
+	if (errormessage)
+	{
+		g_print ("\t\t<error>%s</error>\n", errormessage);
+	}
 	g_print ("\t</interface>\n");
 //gateway=\"%s\" nameserver1=\"%s\">\n");
 }
@@ -119,7 +124,7 @@ print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev)
 
 
 gboolean
-network_status (gpointer data)
+network_status (gpointer data, gchar *errormessage)
 {
 	NMClient *client;
 	const GPtrArray *connections;
@@ -133,7 +138,8 @@ network_status (gpointer data)
 		if (!(client = nm_client_new()))
 		{
 			g_print ("<network>\n\t<interface>\n\t\t<error>Unable to connect to NetworkManager</error>\n\t</interface>\n</network>\n");
-			g_main_loop_quit (loop);
+			if (loop)
+				g_main_loop_quit (loop);
 			return FALSE;
 		}
 	}
@@ -158,7 +164,7 @@ network_status (gpointer data)
 				NMDevice *dev;
 				dev = g_ptr_array_index(devices, j);
 
-				print_device (client, con, dev);
+				print_device (client, con, dev, errormessage);
 				printed = 1;
 			}
 		}
@@ -166,22 +172,35 @@ network_status (gpointer data)
 
 	if (!printed)
 	{
-		g_print ("\t<interface>\n\t\t<error>Device not found</error>\n\t</interface>\n");
+		if (!errormessage)
+		{
+			errormessage = "Device not found";
+		}
+
+		g_print ("\t<interface>\n\t\t<error>%s</error>\n\t</interface>\n", errormessage);
 	}
 
 	g_print ("</network>\n");
 
-	g_main_loop_quit (loop);
+	if (loop)
+		g_main_loop_quit (loop);
 	return FALSE;
 }
 
 #ifdef STANDALONE
+gboolean
+network_status_wrapper (gpointer data)
+{
+	return network_status (data, NULL);
+}
+
+
 int
 main (int argc, char **argv)
 {
 	/* glib overhead */
 	g_type_init();
-	g_idle_add (network_status, NULL);
+	g_idle_add (network_status_wrapper, NULL);
 	loop = g_main_loop_new (NULL, FALSE);  /* create main loop */
 	g_main_loop_run (loop);                /* run main loop */
 	return 0;

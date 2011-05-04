@@ -24,7 +24,7 @@ struct start_network_data {
 	char uuid[64];
 };
 
-gboolean network_status (gpointer data);
+gboolean network_status (gpointer data, gchar *errormessage);
 
 
 static NMConnection *
@@ -309,17 +309,19 @@ static void
 active_connection_state_cb (NMActiveConnection *active, GParamSpec *pspec, gpointer user_data)
 {
         NMActiveConnectionState state;
+	struct start_network_data *data = (struct start_network_data *)user_data;
 
         state = nm_active_connection_get_state (active);
 
         g_print ("state: %s\n", active_connection_state_to_string (state));
 
         if (state == NM_ACTIVE_CONNECTION_STATE_ACTIVATED) {
-                g_print("Connection activated\n");
+		/* Successful connection */
+		network_status (data->client, NULL);
 		g_main_loop_quit (loop);
 		return;
         } else if (state == NM_ACTIVE_CONNECTION_STATE_UNKNOWN) { 
-                g_print("Error: Connection activation failed.\n");
+                network_status (data->client, "Connection activation failed.\n");
 		g_main_loop_quit (loop);
 		return;
         }
@@ -335,20 +337,24 @@ activate_connection_cb (gpointer user_data, const char *path, GError *error)
 	NMActiveConnectionState state;
 
 	if (error) {
-		g_error ("Unable to connect: %s\n", error->message);
+		gchar err[512];
+		g_snprintf (err, sizeof(err), "Unable to connect: %s", error->message);
+		network_status (data->client, err);
 		g_main_loop_quit (loop);
 		return;
 	}
 
 	active = nm_client_get_active_connection_by_path (data->client, path);
 	if (!active) {
-		g_error ("Unable to obtain active conneciton state for %s\n", path);
+		gchar err[512];
+		g_snprintf (err, sizeof(err), "Unable to obtain active connection state for %s", path);
+		network_status (data->client, err);
 		g_main_loop_quit (loop);
 		return;
 	}
 
 	state = nm_active_connection_get_state (active);
-	g_print ("Connection %s state: %s\n", path, active_connection_state_to_string(state));
+	//g_print ("Connection %s state: %s\n", path, active_connection_state_to_string(state));
 
 	/* If we actually connect, then quit */
 	if (state == NM_ACTIVE_CONNECTION_STATE_ACTIVATED)
@@ -364,76 +370,83 @@ activate_connection_cb (gpointer user_data, const char *path, GError *error)
 static void
 connections_read (NMSettingsInterface *settings, gpointer user_data)
 {
-    GSList *connections;
-    NMConnection *connection;
-    NMDevice *dev;
-    struct start_network_data *data = (struct start_network_data *)user_data;
+	GSList *connections;
+	NMConnection *connection;
+	NMDevice *dev;
+	struct start_network_data *data = (struct start_network_data *)user_data;
 
-    if(!NM_IS_REMOTE_SETTINGS_SYSTEM(settings))
-        g_error("Not system settings!  Huh?\n");
+	if(!NM_IS_REMOTE_SETTINGS_SYSTEM(settings))
+	{
+		network_status (data->client, "Not a settings_system object!  Huh?\n");
+		g_main_loop_quit (loop);
+		return;
+	}
 
-    connections = nm_settings_interface_list_connections (settings);
-    connection = find_connection(connections, data->uuid);
+	connections = nm_settings_interface_list_connections (settings);
+	connection = find_connection(connections, data->uuid);
 
-    fprintf(stderr, "Connection for %s: %p\n", data->uuid, connection);
-    if(!connection) {
-        g_error("Unable to find connection");
-        g_main_loop_quit(loop);
-        return;
-    }
+	if (!connection) {
+		network_status (data->client, "Unable to find connection from " NETWORK_CONFIG " in system configs file");
+		g_main_loop_quit(loop);
+		return;
+	}
 
-    dev = get_device_for_connection (data->client, connection);
-    if (!dev) {
-        g_error ("Unable to find device for connection");
-        g_main_loop_quit(loop);
-        return;
-    }
+	dev = get_device_for_connection (data->client, connection);
+	if (!dev) {
+		network_status (data->client, "Unable to find correct device for connection");
+		g_main_loop_quit(loop);
+		return;
+	}
 
-    nm_client_activate_connection (data->client,
-                                   NM_DBUS_SERVICE_SYSTEM_SETTINGS,
-                                   nm_connection_get_path (connection),//con_path,
-                                   dev,//device,
-                                   NULL,//spec_object,
-                                   activate_connection_cb,
-                                   data);
-    return;
+	nm_client_activate_connection (data->client,
+					NM_DBUS_SERVICE_SYSTEM_SETTINGS,
+					nm_connection_get_path (connection),//con_path,
+					dev,//device,
+					NULL,//spec_object,
+					activate_connection_cb,
+					data);
+	return;
 }
 
 
 static void
-do_connection (struct start_network_data *data)
+do_connection (struct start_network_data *user_data)
 {
-    DBusGConnection *bus;
-    GError *error = NULL;
-    NMRemoteSettingsSystem *system_settings;
-    gboolean system_settings_running;
+	DBusGConnection *bus;
+	GError *error = NULL;
+	NMRemoteSettingsSystem *system_settings;
+	gboolean system_settings_running;
+	struct start_network_data *data = (struct start_network_data *)user_data;
 
-    bus = dbus_g_bus_get (DBUS_BUS_SYSTEM, &error);
-    if (!bus || error) {
-        g_error("Unable to connect to system bus");
-        goto out;
-    }
+	bus = dbus_g_bus_get (DBUS_BUS_SYSTEM, &error);
+	if (!bus || error) {
+		network_status (data->client, "Unable to connect to system bus");
+		g_main_loop_quit (loop);
+		goto out;
+	}
 
-    system_settings = nm_remote_settings_system_new(bus);
-    if(!system_settings) {
-        g_error("Unable to get system settings");
-        goto out;
-    }
+	system_settings = nm_remote_settings_system_new(bus);
+	if(!system_settings) {
+		network_status (data->client, "Unable to get system settings");
+		g_main_loop_quit (loop);
+		goto out;
+	}
 
-    g_object_get (system_settings, NM_REMOTE_SETTINGS_SERVICE_RUNNING, &system_settings_running, NULL);
-    if(!system_settings_running) {
-        g_error("System settings service is not running");
-        goto out;
-    }
+	g_object_get (system_settings, NM_REMOTE_SETTINGS_SERVICE_RUNNING, &system_settings_running, NULL);
+	if(!system_settings_running) {
+		network_status (data->client, "System settings service is not running");
+		g_main_loop_quit (loop);
+		goto out;
+	}
 
 
-    g_signal_connect (system_settings, NM_SETTINGS_INTERFACE_CONNECTIONS_READ,
-                                       G_CALLBACK (connections_read), data);
+	g_signal_connect (system_settings, NM_SETTINGS_INTERFACE_CONNECTIONS_READ,
+				G_CALLBACK (connections_read), data);
 
 out:
-    if(bus)
-        dbus_g_connection_unref(bus);
-    return;
+	if (bus)
+		dbus_g_connection_unref(bus);
+	return;
 }
 
 
@@ -442,63 +455,66 @@ out:
 static gboolean
 glib_main (gpointer data)
 {
-    xmlDoc *doc = NULL;
-    xmlNode *root_element = NULL;
-    struct connection conn;
-    static struct start_network_data start_network_data;
+	xmlDoc *doc = NULL;
+	xmlNode *root_element = NULL;
+	struct connection conn;
+	static struct start_network_data start_network_data;
 
-    if (!(start_network_data.client = nm_client_new()))
-    {
-        network_status (NULL);
-        return FALSE;
-    }
-
-
-    /*parse the file and get the DOM */
-    if( NULL == (doc = xmlReadFile(NETWORK_CONFIG, NULL, 0))) {
-        fprintf(stderr, "error: Could not parse " NETWORK_CONFIG "\n");
-        network_status (start_network_data.client);
-        return FALSE;
-    }
-
-    /*Get the root element node */
-    root_element = xmlDocGetRootElement(doc);
-    if (root_element->type == XML_ELEMENT_NODE && !strcmp((char *)root_element->name, "configuration")) {
-        if (!read_connection(&conn, root_element)) {
-            network_status (start_network_data.client);
-            return FALSE;
-        }
-    }
-    else {
-        fprintf(stderr, "error: Invalid " NETWORK_CONFIG " file: No <configuration/> root node\n");
-        network_status (start_network_data.client);
-        return FALSE;
-    }
-
-    xmlFreeDoc(doc);
-    xmlCleanupParser();
-
-    /* Generate the UUID from the connection information */
-    generate_uuid(&conn, start_network_data.uuid, sizeof(start_network_data.uuid));
+	if (!(start_network_data.client = nm_client_new()))
+	{
+		network_status (NULL, "Unable to connect to NetworkManager");
+		g_main_loop_quit (loop);
+	        return FALSE;
+	}
 
 
-    do_connection(&start_network_data);
+	/*parse the file and get the DOM */
+	if( NULL == (doc = xmlReadFile(NETWORK_CONFIG, NULL, 0))) {
+		network_status (start_network_data.client, "error: Could not parse " NETWORK_CONFIG "\n");
+		g_main_loop_quit (loop);
+		return FALSE;
+	}
 
-    /* Print out network status and quit */
-    network_status (start_network_data.client);
+	/*Get the root element node */
+	root_element = xmlDocGetRootElement(doc);
+	if (root_element->type == XML_ELEMENT_NODE && !strcmp((char *)root_element->name, "configuration")) {
+		gchar *err = read_connection(&conn, root_element);
+		if (err) {
+			gchar err2[1024];
+			g_snprintf(err2, sizeof(err2), "Unable to parse configuration data: %s", err);
+			network_status (start_network_data.client, err2);
+			g_main_loop_quit (loop);
+			return FALSE;
+		}
+	}
+	else {
+		network_status (start_network_data.client, "error: Invalid " NETWORK_CONFIG " file: No <configuration/> root node\n");
+		g_main_loop_quit (loop);
+		return FALSE;
+	}
+
+	xmlFreeDoc(doc);
+	xmlCleanupParser();
+
+	/* Generate the UUID from the connection information */
+	generate_uuid(&conn, start_network_data.uuid, sizeof(start_network_data.uuid));
 
 
-    return FALSE;
+	/* Hand control over to do_connection.  Execution will continue in callbacks. */
+	do_connection(&start_network_data);
+
+
+	return FALSE;
 }
 
 
 int
 main(int argc, char **argv)
 {
-    /* glib overhead */
-    g_type_init();
-    g_idle_add (glib_main, NULL);
-    loop = g_main_loop_new (NULL, FALSE);  /* create main loop */
-    g_main_loop_run (loop);                /* run main loop */
-    return 0;
+	/* glib overhead */
+	g_type_init();
+	g_idle_add (glib_main, NULL);
+	loop = g_main_loop_new (NULL, FALSE);  /* create main loop */
+	g_main_loop_run (loop);                /* run main loop */
+	return 0;
 }
