@@ -313,8 +313,6 @@ active_connection_state_cb (NMActiveConnection *active, GParamSpec *pspec, gpoin
 
         state = nm_active_connection_get_state (active);
 
-        g_print ("state: %s\n", active_connection_state_to_string (state));
-
         if (state == NM_ACTIVE_CONNECTION_STATE_ACTIVATED) {
 		/* Successful connection */
 		network_status (data->client, NULL);
