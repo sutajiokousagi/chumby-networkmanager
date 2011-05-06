@@ -21,6 +21,7 @@
 static GMainLoop *loop = NULL;
 struct start_network_data {
 	NMClient *client;
+	gboolean should_quit;
 	char uuid[64];
 };
 
@@ -46,6 +47,7 @@ find_connection(GSList *list, const char *uuid)
 }
 
 
+/*
 static const char *
 active_connection_state_to_string (NMActiveConnectionState state)
 {
@@ -59,6 +61,7 @@ active_connection_state_to_string (NMActiveConnectionState state)
 			return "unknown";
 	}
 }
+*/
 
 static gboolean
 check_ethernet_compatible (NMDeviceEthernet *device, NMConnection *connection, GError **error)
@@ -372,6 +375,7 @@ connections_read (NMSettingsInterface *settings, gpointer user_data)
 	NMConnection *connection;
 	NMDevice *dev;
 	struct start_network_data *data = (struct start_network_data *)user_data;
+	static int tries = 0;
 
 	if(!NM_IS_REMOTE_SETTINGS_SYSTEM(settings))
 	{
@@ -384,8 +388,11 @@ connections_read (NMSettingsInterface *settings, gpointer user_data)
 	connection = find_connection(connections, data->uuid);
 
 	if (!connection) {
-		network_status (data->client, "Unable to find connection from " NETWORK_CONFIG " in system configs file");
-		g_main_loop_quit(loop);
+		if (tries++ >= 2) {
+			network_status (data->client, "Unable to find connection from " NETWORK_CONFIG " in system configs file");
+			g_main_loop_quit(loop);
+			return;
+		}
 		return;
 	}
 
@@ -395,6 +402,7 @@ connections_read (NMSettingsInterface *settings, gpointer user_data)
 		g_main_loop_quit(loop);
 		return;
 	}
+	data->should_quit = FALSE;
 
 	nm_client_activate_connection (data->client,
 					NM_DBUS_SERVICE_SYSTEM_SETTINGS,
@@ -449,6 +457,19 @@ out:
 
 
 
+static gboolean
+do_timeout (gpointer user_data)
+{
+	struct start_network_data *data = (struct start_network_data *)user_data;
+	if (data->should_quit)
+	{
+		network_status (data->client, "error: Connect timed out\n");
+		g_main_loop_quit (loop);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 
 static gboolean
 glib_main (gpointer data)
@@ -458,6 +479,7 @@ glib_main (gpointer data)
 	struct connection conn;
 	static struct start_network_data start_network_data;
 
+
 	if (!(start_network_data.client = nm_client_new()))
 	{
 		network_status (NULL, "Unable to connect to NetworkManager");
@@ -465,6 +487,8 @@ glib_main (gpointer data)
 	        return FALSE;
 	}
 
+	g_timeout_add_seconds (2, do_timeout, &start_network_data);
+	start_network_data.should_quit = TRUE;
 
 	/*parse the file and get the DOM */
 	if( NULL == (doc = xmlReadFile(NETWORK_CONFIG, NULL, 0))) {
