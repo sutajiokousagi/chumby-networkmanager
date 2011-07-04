@@ -1,5 +1,5 @@
-all: start_network ap_scan network_adapter_list macgen network_status
-clean: ap_scan_clean start_network_clean network_adapter_list_clean macgen_clean network_status_clean
+all: start_network ap_scan network_adapter_list macgen network_status signal_strength
+clean: ap_scan_clean start_network_clean network_adapter_list_clean macgen_clean network_status_clean signal_strength_clean
 
 MYCFLAGS+=`pkg-config libxml-2.0 --cflags` `pkg-config glib-2.0 --cflags --libs` `pkg-config libnm-glib --cflags` `pkg-config NetworkManager --cflags` `pkg-config dbus-1 --cflags` -Wall
 MYLDFLAGS+=`pkg-config libxml-2.0 --libs` `pkg-config glib-2.0 --libs` `pkg-config libnm-glib --libs` `pkg-config NetworkManager --libs` `pkg-config dbus-1 --libs`
@@ -25,6 +25,14 @@ ap_scan_clean:
 
 ap_scan: ap_scan.c
 	$(CC)  ap_scan.c -o ap_scan $(MYCFLAGS) $(MYLDFLAGS) $(CFLAGS) $(LDFLAGS)
+
+
+
+signal_strength_clean:
+	rm -f signal_strength
+
+signal_strength: signal_strength.c
+	$(CC)  signal_strength.c -o signal_strength $(MYCFLAGS) $(MYLDFLAGS) $(CFLAGS) $(LDFLAGS)
 
 
 
