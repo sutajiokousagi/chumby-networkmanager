@@ -63,7 +63,7 @@ signal_strength (gpointer data, gchar *errormessage)
 				if (!ap)
 					continue;
 
-				g_print ("<wifi connected=\"1\" signalstrength=\"%d\" />",
+				g_print ("<wifi connected=\"1\" signalstrength=\"%d\" />\n",
 					 nm_access_point_get_strength(ap));
 				printed = 1;
 			}
