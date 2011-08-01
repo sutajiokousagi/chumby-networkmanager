@@ -94,7 +94,7 @@ print_device (NMClient *client, NMActiveConnection *con, NMDevice *dev, gchar *e
 			gateway_s);
 
 		dns = nm_ip4_config_get_nameservers (ipv4);
-		for (dns_i=0; dns_i<dns->len; dns_i++)
+		for (dns_i=0; dns && dns_i<dns->len; dns_i++)
 		{
 			char dns_s[INET_ADDRSTRLEN];
 			guint32 *addrs = (guint32 *)dns->data;
